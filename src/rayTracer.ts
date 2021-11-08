@@ -50,9 +50,47 @@ export class Color {
     }
 }
 
+interface light {
+    color: Color;
+    pos: Vector;
+}
+
+interface arealight {
+    color: Color;
+    pos: Vector;
+    u: Vector;
+    v: Vector;
+}
+
 interface Ray {
     start: Vector;
     dir: Vector;
+}
+
+interface Eye {
+    u: Vector;
+    v: Vector;
+    w: Vector;
+    pos: Vector;
+}
+
+interface sphere {
+    pos: Vector;
+    radius: number; 
+    color: Color; 
+    k_ambient: number; 
+    k_specular: number; 
+    specular_pow: number;
+}
+
+interface disk {
+    pos: Vector;
+    radius: number; 
+    color: Color; 
+    nor: Vector;
+    k_ambient: number; 
+    k_specular: number; 
+    specular_pow: number;
 }
 
 // a suggested interface for jitter samples
@@ -76,6 +114,16 @@ class RayTracer {
 
     canv: HTMLCanvasElement
     ctx: CanvasRenderingContext2D 
+
+    pointlights: light[] = []
+    ambientligh: light = {color:Color.white, pos:new Vector(0,0,0)}
+    ambient:boolean = false
+    backgroundcolor: Color = Color.grey
+    fov: number = 90
+    eye: Eye = {u:new Vector(0,0,0), v:new Vector(0,0,-1), w:new Vector(0,1,0), pos:new Vector(0,0,0)}
+    spheres:sphere[] = []
+    disks: disk[] = []
+    arealights: arealight[] = []
 
     // some things that will get specified by user method calls
     enableShadows = true
@@ -102,6 +150,16 @@ class RayTracer {
             return
         }
         
+        this.pointlights = []
+        this.ambientligh = {color:Color.white, pos:new Vector(0,0,0)}
+        this.backgroundcolor = Color.grey
+        this.ambient = false
+        this.fov = 90
+        this.eye = {u:new Vector(0,0,0), v:new Vector(0,0,-1), w:new Vector(0,1,0), pos:new Vector(0,0,0)}
+        this.spheres = []
+        this.disks = []
+        this.arealights = []
+
         div.appendChild(this.canv);
 
         this.canv.id = "main";
@@ -135,11 +193,29 @@ class RayTracer {
               nx: number, ny: number, nz: number, dr: number, dg: number, db: number, 
               k_ambient: number, k_specular: number, specular_pow: number,
               vx?: number, vy?: number, vz?: number) {
+                var newDisk:disk = {
+                    pos: new Vector(x,y,z),
+                    radius: radius,
+                    color: new Color(dr,dg,db),
+                    nor: new Vector(nx,ny,nz),
+                    k_ambient: k_ambient, 
+                    k_specular: k_specular, 
+                    specular_pow: specular_pow
+                }
+                this.disks.push(newDisk)
+                    
     }
 
     // create a new area light source
     area_light (r: number, g: number, b: number, x: number, y: number, z: number, 
                 ux: number, uy: number, uz: number, vx: number, vy: number, vz: number) {
+                    var newarealight:arealight = {
+                        color: new Color(r,g,b),
+                        pos: new Vector(x,y,z),
+                        u: new Vector(ux,uy,uz),
+                        v: new Vector(vx, vy, vz)
+                    }
+                    this.arealights.push(newarealight)
     }
 
     set_sample_level (num: number) {
@@ -189,20 +265,29 @@ class RayTracer {
 
     // create a new point light source
     new_light (r: number, g: number, b: number, x: number, y: number, z: number) {
+
+        var newlight:light = {color:new Color(r,g,b), pos:new Vector(x, y, z)}
+        this.pointlights.push(newlight)
     }
 
     // set value of ambient light source
     ambient_light (r: number, g: number, b: number) {
+    
+        var newlight:light = {color:new Color(r,g,b), pos:new Vector(0, 0, 0)}
+        this.ambientligh = newlight
+        this.ambient = true
     }
 
     // set the background color for the scene
     set_background (r: number, g: number, b: number) {
+        this.backgroundcolor = new Color(r, g, b)
     }
 
     // set the field of view
     DEG2RAD = (Math.PI/180)
 
     set_fov (theta: number) {
+        this.fov = theta
     }
 
     // // set the position of the virtual camera/eye
@@ -214,6 +299,16 @@ class RayTracer {
     set_eye(x1: number, y1: number, z1: number, 
             x2: number, y2: number, z2: number, 
             x3: number, y3: number, z3: number) {
+                var w:Vector = new Vector(-(x2 - x1), -(y2 - y1), -(z2 - z1))
+                w = Vector.norm(w)
+                var v:Vector = new Vector(x3,y3,z3)
+                // v = Vector.norm(v)
+                var u:Vector = Vector.cross(v, w)
+                u = Vector.norm(u)
+                v = Vector.cross(u, w)
+                v = Vector.norm(v)
+                var pos:Vector = new Vector(x1,y1,z1)
+                this.eye = {u:u, v:v, w:w, pos:pos}
     }
 
     // create a new sphere.
@@ -226,6 +321,11 @@ class RayTracer {
                 dr: number, dg: number, db: number, 
                 k_ambient: number, k_specular: number, specular_pow: number, 
                 vx?: number, vy?: number, vz?: number) {
+
+                    var pos = new Vector(x,y,z)
+                    var current:sphere = {pos:pos, radius: radius, color: new Color(dr,dg,db), 
+                        k_ambient: k_ambient, k_specular: k_specular, specular_pow: specular_pow}
+                    this.spheres.push(current)
     }
 
     // INTERNAL METHODS YOU MUST IMPLEMENT
