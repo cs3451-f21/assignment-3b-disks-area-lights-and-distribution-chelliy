@@ -175,11 +175,98 @@ class RayTracer {
     // The distribution would use the jitter parameters to create either a regularly spaced or 
     // randomized set of samples.
     private createDistribution(): Sample[] {
+        var output:Sample[] = []
+        var interval:number = 1/this.samples
+        // for (let i = 0; i < this.samples; i++) {
+        //     for (let j = 0; j < this.samples; j++) {
+        //         if (this.jitter == true) {
+        //             var left = -1 + 2*i*interval
+        //             var down = -1 + 2*j*interval
+        //             var point:Sample = {s:(Math.random()*(2*interval) + left), t:(Math.random()*(2*interval) + down)}
+        //         }else{
+        //             var s:number = -1 + interval + 2*i*interval
+        //             var t:number = -1 + interval + 2*j*interval
+        //             var point:Sample = {s:s, t:t}
+        //         }
+        //         output.push(point)
+        //     }
+        // }
+        for (let i = 0; i < this.samples; i++) {
+            for (let j = 0; j < this.samples; j++) {
+                if (this.jitter == true) {
+                    var point:Sample = {s:(i+Math.random())/this.samples, t:(j+Math.random())/this.samples}
+                }else{
+                    var point:Sample = {s:(i+.5)/this.samples, t:(j+.5)/this.samples}
+                }
+                output.push(point)
+            }
+        }
+        return output
     }
 
     // HINT: SUGGESTED BUT NOT REQUIRED, INTERNAL METHOD
     // like traceRay, but returns on first hit. More efficient than traceRay for detecting if "in shadow"
-    private testRay(ray: Ray) {
+    private testRay(ray: Ray): number {
+        var recordT:number = 9999999
+        var e = ray.start
+        var d = ray.dir
+        this.spheres.forEach(function (sphere) {
+            var c = sphere.pos
+            var R = sphere.radius
+            var eMc = Vector.minus(e, c)
+            //check b^2-4ac
+            var b = Vector.dot(d, eMc)
+            var bSquare = Math.pow(b, 2)
+            var ac = Vector.dot(d, d) * (Vector.dot(eMc, eMc) - R*R)
+            var check = (bSquare - ac)
+            if (check >= 0) {  
+                var currentT1:number = (-b + Math.sqrt(check))/Vector.dot(d,d)
+                var currentT2:number = (-b - Math.sqrt(check))/Vector.dot(d,d)
+
+                var currentPoint1 = Vector.plus(e, Vector.times(currentT1, d))
+                var distance1 = Vector.mag(Vector.minus(currentPoint1, ray.start))
+                var currentPoint2 = Vector.plus(e, Vector.times(currentT2, d))
+                var distance2 = Vector.mag(Vector.minus(currentPoint2, e))
+                if (distance1 > 0 && distance2 > 0) {
+                    if (distance1 < distance2 && distance1 < recordT) {
+                        recordT = distance1
+                    }else if (distance1 > distance2 && distance2 < recordT){
+                        recordT = distance2
+                    }
+                }else if (distance1 > 0) {
+                    if (distance1< recordT) {
+                        recordT = distance1
+                    }
+                }else if (distance2 > 0) {
+                    if (distance2 < recordT) {
+                        recordT = distance2
+                    }
+                }
+            }
+        })
+        
+        //disks
+
+        this.disks.forEach(function (disk) {
+            var c = disk.pos
+            var R = disk.radius
+            var norm = disk.nor
+
+            var D = - Vector.dot(norm, c)
+            var up = -(Vector.dot(norm, e) + D)
+            var down = Vector.dot(norm, d)
+            var t = up/down
+            var point = Vector.plus(e, Vector.times(t, d))
+
+            var distance = Vector.mag(Vector.minus(point, c))
+            if (distance <= R) {
+                var distanceToLight = Vector.mag(Vector.minus(point, e))
+                if (distanceToLight < recordT) {
+                    recordT = distanceToLight  
+                }
+            }
+        })
+        return recordT
     }
 
     // NEW COMMANDS FOR PART B
@@ -261,6 +348,15 @@ class RayTracer {
 
     // clear out all scene contents
     reset_scene() {
+        this.clear_screen();
+        this.pointlights = []
+        this.ambientligh = {color:Color.white, pos:new Vector(0,0,0)}
+        this.backgroundcolor = Color.grey
+        this.set_eye(0,0,0,0,0,-1,0,1,0)
+        this.spheres = []
+        this.ambient = false
+        this.disks = []
+        this.arealights = []
     }
 
     // create a new point light source
@@ -332,9 +428,220 @@ class RayTracer {
 
     // create an eye ray based on the current pixel's position
     private eyeRay(i: number, j: number): Ray {
+        var d:number = -1/Math.tan(this.DEG2RAD*this.fov/2)
+        var ratio:number = this.height/this.width
+        var us:number = -1 + 2*i/this.screenWidth + 1/this.screenWidth
+        var vs:number = (-1 + 2*j/this.screenHeight + 1/this.screenHeight)*ratio
+        // var us:number = -1 + 2*i/this.screenWidth
+        // var vs:number = -1 + 2*j/this.screenHeight
+        var dir:Vector = Vector.plus(
+            Vector.plus(
+                Vector.times(us, this.eye.u), 
+                Vector.times(vs, this.eye.v)
+            )
+            , 
+            Vector.times(d, this.eye.w)
+        )
+        dir = Vector.norm(dir)
+        var output:Ray = {start:this.eye.pos, dir:dir}
+        return output
     }
 
     private traceRay(ray: Ray, depth: number = 0): Color {
+        var record:sphere|disk
+        var check:number = 0
+        var normal:Vector = new Vector(0,0,0)
+        if (this.disks.length > 0){
+            record = this.disks[0]
+        }else{
+            record = this.spheres[0]
+        }
+        var recordT:number = 9999999
+        var e = ray.start
+        var d = ray.dir
+        this.spheres.forEach(function (sphere) {
+            var c = sphere.pos
+            var R = sphere.radius
+            var eMc = Vector.minus(e, c)
+            //check b^2-4ac
+            var b = Vector.dot(d, eMc)
+            var bSquare = Math.pow(b, 2)
+            var ac = Vector.dot(d, d) * (Vector.dot(eMc, eMc) - R*R)
+            var check = (bSquare - ac)
+            if (check >= 0) {  
+                var currentT1:number = (-b + Math.sqrt(check))/Vector.dot(d,d)
+                var currentT2:number = (-b - Math.sqrt(check))/Vector.dot(d,d)
+                if (check == 0) {
+                    if (currentT2 < recordT) {
+                        recordT = currentT2
+                        record = sphere    
+                        check = 1
+                    }
+                }else{
+                    var min:number = 0
+                    if (currentT1 > currentT2) {
+                        min = currentT2                        
+                    }else{
+                        min = currentT1
+                    }
+                    if (min < recordT) {  
+                        recordT = min      
+                        record = sphere   
+                        check = 1               
+                    }
+                }
+            }
+        })
+        
+        //disks
+
+        this.disks.forEach(function (disk) {
+            var c = disk.pos
+            var R = disk.radius
+            var norm = disk.nor
+
+            var D = - Vector.dot(norm, c)
+            var up = -(Vector.dot(norm, e) + D)
+            var down = Vector.dot(norm, d)
+            var t = up/down
+            var point = Vector.plus(e, Vector.times(t, d))
+
+            var distance = Vector.mag(Vector.minus(point, c))
+            if (distance <= R) {  
+                if (t < recordT && t > 0) {
+                    recordT = t
+                    record = disk 
+                    check = 2   
+                    normal = disk.nor
+                }
+            }
+        })
+
+        if(recordT == 9999999){
+            return this.backgroundcolor
+        }else{
+            var sum = new Color(0,0,0)
+            var point = Vector.plus(e, Vector.times(recordT, d))
+            // var n = Vector.times(1/record.radius, Vector.minus(point, record.pos))
+            var n = Vector.minus(point, record.pos)
+            n = Vector.norm(n)
+
+            if (check == 2) {
+                n = normal
+            }
+
+            var kd = record.color
+            var ka = record.k_ambient
+            var ks = new Color(record.k_specular, record.k_specular, record.k_specular)
+            var sp = record.specular_pow
+            var V = ray.dir
+            V = Vector.times(-1, V)
+            V = Vector.norm(V)
+            this.pointlights.forEach(light => {
+                var l = Vector.minus(light.pos, point)
+                l = Vector.norm(l)
+
+                var newRay:Ray = {start:light.pos, dir:Vector.times(-1, l)}
+                var firsthitdis:number = this.testRay(newRay)
+                var originaldistance = Vector.mag(Vector.minus(point, light.pos))
+
+                var shadow:number
+                if (0.0000001 < originaldistance - firsthitdis) {
+                    shadow = 0
+                }else{
+                    shadow = 1
+                }
+
+                var Ri = Vector.minus(
+                    Vector.times(2, Vector.times(Vector.dot(l, n), n)),
+                    l
+                )
+                Ri = Vector.norm(Ri)
+                
+                var Riv = Vector.dot(Ri, V)
+
+                if (Vector.dot(Ri,l) <= 0) {
+                    Riv = 0
+                }
+
+                var Rivpi = Math.pow(Riv, sp)
+
+                var specular = Color.scale(Rivpi, ks)
+
+                var diffuse = Color.scale(Vector.dot(n,l), kd)
+                
+                var finalsum = Color.plus(specular, diffuse)
+
+                var final = Color.scale(shadow,Color.times(light.color, finalsum))
+
+                sum = Color.plus(final, sum)
+            })
+        
+            var distr:Sample[] = this.createDistribution()
+            this.arealights.forEach(light => {
+                var diffuseSum:Color = new Color(0,0,0)
+                var finalSpec:Color = new Color(0,0,0)
+                var counts:number  = 0
+                distr.forEach(sample => {
+                    var pos = Vector.plus(light.pos, Vector.plus(Vector.times(2*sample.s - 1, light.u), Vector.times(2*sample.t - 1, light.v)))
+                    var l = Vector.minus(pos, point)
+
+                    var newRay:Ray = {start:light.pos, dir:Vector.norm(Vector.times(-1, l))}
+                    var firsthitdis:number = this.testRay(newRay)
+                    var originaldistance = Vector.mag(Vector.minus(point, light.pos))
+    
+                    var shadow:number
+                    if (0.0000001 < originaldistance - firsthitdis) {
+                        shadow = 0
+                    }else{
+                        counts+=1
+                        shadow = 1
+                    }
+
+                    l = Vector.norm(l)
+                    var Ri = Vector.minus(
+                        Vector.times(2, Vector.times(Vector.dot(l, n), n)),
+                        l
+                    )
+                    Ri = Vector.norm(Ri)
+                    
+                    var Riv = Vector.dot(Ri, V)
+    
+                    if (Vector.dot(Ri,l) <= 0) {
+                        Riv = 0
+                    }
+    
+                    var Rivpi = Math.pow(Riv, sp)
+    
+                    var specular = Color.scale(Rivpi, ks)
+    
+                    var diffuse = Color.scale(Vector.dot(n,l), kd)
+                    
+                    if (shadow == 1) {
+                        diffuseSum = Color.plus(diffuseSum, diffuse) 
+                    }
+                    
+                    var magFornew = Color.lightness(specular)
+                    var magForold = Color.lightness(finalSpec)
+
+                    if ( magFornew > magForold ) {
+                        finalSpec = specular
+                    }
+                })
+                diffuseSum = Color.scale(1/(this.samples*this.samples), diffuseSum)
+                sum = Color.plus(sum, Color.times(light.color,Color.plus(diffuseSum, finalSpec)))
+            })
+
+            
+
+            var ambientColor = this.ambientligh.color
+            if(this.ambient == true){
+                sum = Color.plus(sum, Color.times(Color.scale(ka, ambientColor), kd))
+            }
+
+            return sum
+        }
+
     }
 
     // draw_scene is provided to create the image from the ray traced colors. 
@@ -365,11 +672,16 @@ class RayTracer {
 
                 // HINT: you will need to loop through all the rays, if distribution is turned
                 // on, and compute an average color for each pixel.
+                var sum:Color = new Color(0,0,0)
+                vecs.forEach(vec => {
+                    var ray = this.eyeRay(x+vec.s-0.5, y+vec.t-0.5);
+                    var c = this.traceRay(ray); 
+                    sum = Color.plus(c, sum)
+                });
 
-                var ray = this.eyeRay(x, y);
-                var c = this.traceRay(ray);
+                sum = Color.scale(1/(this.samples*this.samples), sum)
 
-                var color = Color.toDrawingColor(c)
+                var color = Color.toDrawingColor(sum)
                 this.ctx.fillStyle = "rgb(" + String(color.r) + ", " + String(color.g) + ", " + String(color.b) + ")";
                 this.ctx.fillRect(x * pixelWidth, y * pixelHeight, pixelWidth+1, pixelHeight+1);
             }

@@ -4,7 +4,7 @@ import {RayTracer} from "./rayTracer"
 class TestRT extends RayTracer {
     
     constructor (div: HTMLElement) {
-        super(div, 500, 600, 500, 600)
+        super(div, 500, 600, 250, 300)
 
         document.addEventListener("keydown", (event) => {
             this.keyPressed(event.key)
