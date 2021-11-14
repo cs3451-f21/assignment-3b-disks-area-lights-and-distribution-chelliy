@@ -206,8 +206,69 @@ class RayTracer {
 
     // HINT: SUGGESTED BUT NOT REQUIRED, INTERNAL METHOD
     // like traceRay, but returns on first hit. More efficient than traceRay for detecting if "in shadow"
-    private testRay(ray: Ray): number {
-        var recordT:number = 9999999
+    private testRay(ray: Ray): boolean {
+        // var recordT:number = 9999999
+        // var e = ray.start
+        // var d = ray.dir
+        // this.spheres.forEach(function (sphere) {
+        //     var c = sphere.pos
+        //     var R = sphere.radius
+        //     var eMc = Vector.minus(e, c)
+        //     //check b^2-4ac
+        //     var b = Vector.dot(d, eMc)
+        //     var bSquare = Math.pow(b, 2)
+        //     var ac = Vector.dot(d, d) * (Vector.dot(eMc, eMc) - R*R)
+        //     var check = (bSquare - ac)
+        //     if (check >= 0) {  
+        //         var currentT1:number = (-b + Math.sqrt(check))/Vector.dot(d,d)
+        //         var currentT2:number = (-b - Math.sqrt(check))/Vector.dot(d,d)
+
+        //         var currentPoint1 = Vector.plus(e, Vector.times(currentT1, d))
+        //         var distance1 = Vector.mag(Vector.minus(currentPoint1, ray.start))
+        //         var currentPoint2 = Vector.plus(e, Vector.times(currentT2, d))
+        //         var distance2 = Vector.mag(Vector.minus(currentPoint2, e))
+        //         if (distance1 > 0 && distance2 > 0) {
+        //             if (distance1 < distance2 && distance1 < recordT) {
+        //                 recordT = distance1
+        //             }else if (distance1 > distance2 && distance2 < recordT){
+        //                 recordT = distance2
+        //             }
+        //         }else if (distance1 > 0) {
+        //             if (distance1< recordT) {
+        //                 recordT = distance1
+        //             }
+        //         }else if (distance2 > 0) {
+        //             if (distance2 < recordT) {
+        //                 recordT = distance2
+        //             }
+        //         }
+        //     }
+        // })
+        
+        // //disks
+
+        // this.disks.forEach(function (disk) {
+        //     var c = disk.pos
+        //     var R = disk.radius
+        //     var norm = disk.nor
+
+        //     var D = - Vector.dot(norm, c)
+        //     var up = -(Vector.dot(norm, e) + D)
+        //     var down = Vector.dot(norm, d)
+        //     var t = up/down
+        //     var point = Vector.plus(e, Vector.times(t, d))
+
+        //     var distance = Vector.mag(Vector.minus(point, c))
+        //     if (distance <= R) {
+        //         var distanceToLight = Vector.mag(Vector.minus(point, e))
+        //         if (distanceToLight < recordT) {
+        //             recordT = distanceToLight  
+        //         }
+        //     }
+        // })
+        // return recordT
+
+        var output = false
         var e = ray.start
         var d = ray.dir
         this.spheres.forEach(function (sphere) {
@@ -222,31 +283,13 @@ class RayTracer {
             if (check >= 0) {  
                 var currentT1:number = (-b + Math.sqrt(check))/Vector.dot(d,d)
                 var currentT2:number = (-b - Math.sqrt(check))/Vector.dot(d,d)
-
-                var currentPoint1 = Vector.plus(e, Vector.times(currentT1, d))
-                var distance1 = Vector.mag(Vector.minus(currentPoint1, ray.start))
-                var currentPoint2 = Vector.plus(e, Vector.times(currentT2, d))
-                var distance2 = Vector.mag(Vector.minus(currentPoint2, e))
-                if (distance1 > 0 && distance2 > 0) {
-                    if (distance1 < distance2 && distance1 < recordT) {
-                        recordT = distance1
-                    }else if (distance1 > distance2 && distance2 < recordT){
-                        recordT = distance2
-                    }
-                }else if (distance1 > 0) {
-                    if (distance1< recordT) {
-                        recordT = distance1
-                    }
-                }else if (distance2 > 0) {
-                    if (distance2 < recordT) {
-                        recordT = distance2
-                    }
+                if (currentT1 > 0 || currentT2 > 0) {
+                    output = true
                 }
             }
         })
         
         //disks
-
         this.disks.forEach(function (disk) {
             var c = disk.pos
             var R = disk.radius
@@ -260,13 +303,12 @@ class RayTracer {
 
             var distance = Vector.mag(Vector.minus(point, c))
             if (distance <= R) {
-                var distanceToLight = Vector.mag(Vector.minus(point, e))
-                if (distanceToLight < recordT) {
-                    recordT = distanceToLight  
+                if (t > 0) {
+                    output = true
                 }
             }
         })
-        return recordT
+        return output
     }
 
     // NEW COMMANDS FOR PART B
@@ -539,14 +581,23 @@ class RayTracer {
             V = Vector.norm(V)
             this.pointlights.forEach(light => {
                 var l = Vector.minus(light.pos, point)
-                l = Vector.norm(l)
 
-                var newRay:Ray = {start:light.pos, dir:Vector.times(-1, l)}
-                var firsthitdis:number = this.testRay(newRay)
-                var originaldistance = Vector.mag(Vector.minus(point, light.pos))
+                // var newRay:Ray = {start:light.pos, dir:Vector.times(-1, l)}
+                // var firsthitdis:number = this.testRay(newRay)
+                // var originaldistance = Vector.mag(Vector.minus(point, light.pos))
+
+                // var shadow:number
+                // if (1e-6< originaldistance - firsthitdis) {
+                //     shadow = 0
+                // }else{
+                //     shadow = 1
+                // }
+                l = Vector.norm(l)
+                var newRay:Ray = {start:Vector.plus(point, Vector.times(1e-6, n)), dir:l}
+                var firsthit:boolean = this.testRay(newRay)
 
                 var shadow:number
-                if (0.0000001 < originaldistance - firsthitdis) {
+                if (firsthit == true) {
                     shadow = 0
                 }else{
                     shadow = 1
@@ -577,8 +628,8 @@ class RayTracer {
                 sum = Color.plus(final, sum)
             })
         
-            var distr:Sample[] = this.createDistribution()
             this.arealights.forEach(light => {
+                var distr:Sample[] = this.createDistribution()
                 var diffuseSum:Color = new Color(0,0,0)
                 var finalSpec:Color = new Color(0,0,0)
                 var counts:number  = 0
@@ -586,19 +637,28 @@ class RayTracer {
                     var pos = Vector.plus(light.pos, Vector.plus(Vector.times(2*sample.s - 1, light.u), Vector.times(2*sample.t - 1, light.v)))
                     var l = Vector.minus(pos, point)
 
-                    var newRay:Ray = {start:light.pos, dir:Vector.norm(Vector.times(-1, l))}
-                    var firsthitdis:number = this.testRay(newRay)
-                    var originaldistance = Vector.mag(Vector.minus(point, light.pos))
+                    // var newRay:Ray = {start:light.pos, dir:Vector.times(-1, l)}
+                    // var firsthitdis:number = this.testRay(newRay)
+                    // var originaldistance = Vector.mag(Vector.minus(point, light.pos))
+    
+                    // var shadow:number
+                    // if (1e-6 < originaldistance - firsthitdis) {
+                    //     shadow = 0
+                    // }else{
+                    //     counts+=1
+                    //     shadow = 1
+                    // }
+                    l = Vector.norm(l)
+                    var newRay:Ray = {start:Vector.plus(point, Vector.times(1e-6, n)), dir:l}
+                    var firsthit:boolean = this.testRay(newRay)
     
                     var shadow:number
-                    if (0.0000001 < originaldistance - firsthitdis) {
+                    if (firsthit == true) {
                         shadow = 0
                     }else{
-                        counts+=1
                         shadow = 1
                     }
 
-                    l = Vector.norm(l)
                     var Ri = Vector.minus(
                         Vector.times(2, Vector.times(Vector.dot(l, n), n)),
                         l
@@ -620,6 +680,7 @@ class RayTracer {
                     if (shadow == 1) {
                         diffuseSum = Color.plus(diffuseSum, diffuse) 
                     }
+                    
                     
                     var magFornew = Color.lightness(specular)
                     var magForold = Color.lightness(finalSpec)
