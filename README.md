@@ -1,3 +1,5 @@
+(Public only for jop application purpose, shouldn't be copyed as an answer)
+
 # Assignment 3b:  Disks, Area Lights, and Distribution Ray Tracing
 
 In this project you will expand the ray tracer that you wrote for Project 3A. The new features that you will add are distribution ray tracing, and adding disk objects and area light sources to the scene description. Adding disks will allow you to create scenes that have more geometric richness, including flat planes upon which other objects may rest. Area light sources will allow the creation of soft shadows when distribution ray tracing is enabled. In addition to these new scene features, you will add shadows to your illumination equation. 
